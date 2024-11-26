@@ -13,12 +13,11 @@ const uploadonCloudinary = async (file) => {
     const response = await cloudinary.uploader.upload(file, {
       resource_type: "auto",
     });
-    console.log("File Uploaded Successfully", response);
-    fs.unlinkSync(file)
+    fs.unlinkSync(file);
     return response;
   } catch (error) {
     fs.unlinkSync(file);
-    console.error("Failed to send Image in Cloudinary !! ", error);
+    console.error("Cloudinary upload failed:", error);
     return null;
   }
 };

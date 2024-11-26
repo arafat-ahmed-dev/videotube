@@ -8,7 +8,9 @@ dotenv.config({
 
 connectDB()
   .then(() => {
-    app.listen(4000, () => {
+    console.log("Access Token Secret:", process.env.ACCESS_TOKEN_SECRET);
+    console.log("Refresh Token Secret:", process.env.REFRESH_TOKEN_SECRET);
+    app.listen(4500, () => {
       console.log(`Server is running on port ${process.env.PORT}`);
     });
   })

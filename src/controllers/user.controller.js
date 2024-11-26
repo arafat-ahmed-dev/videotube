@@ -26,7 +26,6 @@ const genarateAccessTokenAndRefreshToken = async (userid) => {
   }
 };
 
-
 const registerUser = asyncHandler(async (req, res) => {
   // Get user details from request body
   const { username, email, fullName, password } = req.body;
@@ -95,10 +94,9 @@ const loginUser = asyncHandler(async (req, res) => {
   console.log("Email provided: ", email);
   console.log("username found: ", username);
 
-
- if (!username || !email) {
-   throw new apiError(400, "username or email is required");
- }
+  if (!username || !email) {
+    throw new apiError(400, "username or email is required");
+  }
 
   const user = await User.findOne({
     $or: [{ username }, { email }],
@@ -114,14 +112,14 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const { accessToken, refreshToken } =
     await genarateAccessTokenAndRefreshToken(user._id);
-  
+
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
 
   const option = {
     httpOnly: true,
-    secure: "production",
+    secure: true,
   };
   return res
     .status(200)
@@ -141,9 +139,27 @@ const loginUser = asyncHandler(async (req, res) => {
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
-  // Clear the cookies containing access and refresh tokens
-  // This will effectively log out the user
-  // Return a success response indicating the user has been logged out
+  await User.findByIdAndUpdate(
+    req.user._id,
+    {
+      $set: {
+        refreshToken: undefined,
+      },
+    },
+    {
+      new: true,
+    }
+  );
+
+  const option = {
+    httpOnly: true,
+    secure: true,
+  };
+  return res
+    .status(200)
+    .clearcookie("accessToken", option)
+    .clearcookiecookie("refreshToken", option)
+    .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
 export { registerUser, loginUser, logoutUser };
