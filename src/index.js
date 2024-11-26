@@ -3,14 +3,14 @@ import dotenv from "dotenv";
 import app from "./app.js";
 
 dotenv.config({
-  path: "./env",
+  path: "./.env",
 });
 
 connectDB()
   .then(() => {
     console.log("Access Token Secret:", process.env.ACCESS_TOKEN_SECRET);
     console.log("Refresh Token Secret:", process.env.REFRESH_TOKEN_SECRET);
-    app.listen(4500, () => {
+    app.listen(3001, () => {
       console.log(`Server is running on port ${process.env.PORT}`);
     });
   })
