@@ -10,18 +10,16 @@ cloudinary.config({
 const uploadonCloudinary = async (file) => {
   try {
     if (!file) return null;
-    const response = await cloudinary.uploader.upload(file ,
-      {
-        resource_type : "auto"
-      }
-    );
+    const response = await cloudinary.uploader.upload(file, {
+      resource_type: "auto",
+    });
     console.log("File Uploaded Successfully", response);
     return response;
   } catch (error) {
-    fs.unlink(file)
-    console.error("Failed to send Image in Cloudinary !! ",error);
-    return null
+    fs.unlink(file);
+    console.error("Failed to send Image in Cloudinary !! ", error);
+    return null;
   }
 };
 
-export default uploadonCloudinary;
+export { uploadonCloudinary };

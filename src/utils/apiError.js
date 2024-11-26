@@ -3,7 +3,7 @@ class apiError extends Error {
   constructor(
     statusCode, // HTTP status code for the error
     message = "Something went wrong", // Default error message if none provided
-    error = [], // Array to hold multiple error details
+    errors = [], // Array to hold multiple error details
     stack = "" // Optional stack trace
   ) {
     // Call parent Error constructor with message
@@ -14,7 +14,7 @@ class apiError extends Error {
     this.data = null; // No data returned for errors
     this.message = message; // Store the error message
     this.success = false; // Indicate request was not successful
-    this.errors = error; // Store array of detailed errors
+    this.errors = errors; // Store array of detailed errors
 
     // Handle stack trace
     if (stack) {
