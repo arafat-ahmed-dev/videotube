@@ -2,7 +2,10 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { apiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
-import { uploadonCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadonCloudinary,
+  deleteCloudinaryImage,
+} from "../utils/cloudinary.js";
 
 const genarateAccessTokenAndRefreshToken = async (userid) => {
   try {
@@ -356,6 +359,11 @@ const updateAvatarFile = asyncHandler(async (req, res) => {
   if (!updatedUser) {
     throw new apiError(500, "Something went wrong while updating the avatar");
   }
+  //delete the old/ previous photo from server 
+  const oldAvatarPath = user.avatar;
+  if (oldAvatarPath) {
+    await deleteCloudinaryImage(oldAvatarPath);
+  }
 
   // Return a success response with the updated user data
   return res
@@ -395,7 +403,11 @@ const updateCoverImageFile = asyncHandler(async (req, res) => {
   if (!updatedUser) {
     throw new apiError(500, "Something went wrong while updating the cover image");
   }
-
+  //delete the old/previous file from server 
+  const oldCoverImagePath = user.coverImage;
+  if (oldCoverImagePath) {
+    await deleteCloudinaryImage(oldCoverImagePath);
+  }
   // Return a success response with the updated user data
   return res
     .status(200)

@@ -22,4 +22,15 @@ const uploadonCloudinary = async (file) => {
   }
 };
 
-export { uploadonCloudinary };
+const deleteCloudinaryImage = async (file) => {
+  try {
+    if (!file) return null;
+    const response = await cloudinary.uploader.destroy(file);
+    return response;
+  } catch (error) {
+    console.error("Cloudinary image deletion failed:", error);
+    return null;
+  }
+}
+
+export { uploadonCloudinary, deleteCloudinaryImage };
