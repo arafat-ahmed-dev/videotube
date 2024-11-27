@@ -3,7 +3,7 @@ import { apiError } from "../utils/apiError.js";
 import { User } from "../models/user.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import {
-  uploadonCloudinary,
+  uploadOnCloudinary,
   deleteCloudinaryImage,
 } from "../utils/cloudinary.js";
 
@@ -57,8 +57,8 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   // Upload images to cloudinary
-  const avatar = await uploadonCloudinary(avatarLocalPath);
-  const coverImage = await uploadonCloudinary(coverImageLocalPath);
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
 
   // Verify avatar upload was successful
   if (!avatar) {
@@ -297,7 +297,10 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   // Check if the new full name and username match the old ones
   const currentUser = await User.findById(userId);
   if (fullName === currentUser.fullName || username === currentUser.username) {
-    throw new apiError(400, "New full name and username cannot be the same as the old ones");
+    throw new apiError(
+      400,
+      "New full name and username cannot be the same as the old ones"
+    );
   }
 
   // Prepare the update object based on the fields provided
@@ -309,10 +312,10 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   const updatedUser = await User.findByIdAndUpdate(
     userId,
     {
-      $set: updateObject
+      $set: updateObject,
     },
     {
-      new: true
+      new: true,
     }
   );
 
@@ -330,84 +333,92 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 });
 
 const updateAvatarFile = asyncHandler(async (req, res) => {
-  const userId = req.user._id; // Get the current user's ID from the request
-  const user = await User.findById(userId); // Find the user in the database
+  const userId = req.user?._id; // Get the current user's ID from the request
 
+  // Validate user existence
+  const user = await User.findById(userId);
   if (!user) {
-    throw new apiError(404, "User not found"); // Handle case where user is not found
+    throw new apiError(404, "User not found");
   }
 
-  // Check if a new avatar image is uploaded in the request
-  const avatarLocalPath = req.files?.avatar[0]?.path;
-
-  // If new avatar image is uploaded, upload it to Cloudinary and update the avatar URL
-  if (avatarLocalPath) {
-    const avatar = await uploadonCloudinary(avatarLocalPath);
-    if (!avatar) {
-      throw new apiError(500, "Failed to upload avatar to cloudinary");
-    }
-    user.avatar = avatar.url;
-    await user.save(); // Save the updated user document in the database
+  // Check if a new avatar image is provided in the request
+  const avatarLocalPath = req.file?.path;
+  if (!avatarLocalPath) {
+    throw new apiError(400, "Avatar file is missing");
   }
 
-  // Fetch the updated user object without sensitive data (e.g., password and refreshToken)
-  const updatedUser = await User.findById(userId).select(
-    "-password -refreshToken"
-  );
+  // Upload new avatar to Cloudinary
+  const avatar = await uploadOnCloudinary(avatarLocalPath);
+  if (!avatar?.url) {
+    throw new apiError(500, "Failed to upload avatar to Cloudinary");
+  }
 
-  // Check for successful user update and handle any errors
+  // Delete old avatar from Cloudinary if it exists and is different
+  const oldAvatarUrl = user.avatar;
+  if (oldAvatarUrl && oldAvatarUrl !== avatar.url) {
+    await deleteCloudinaryImage(oldAvatarUrl);
+  }
+
+  // Update user record with new avatar URL
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $set: { avatar: avatar.url } },
+    { new: true }
+  ).select("-password");
+
   if (!updatedUser) {
-    throw new apiError(500, "Something went wrong while updating the avatar");
-  }
-  //delete the old/ previous photo from server 
-  const oldAvatarPath = user.avatar;
-  if (oldAvatarPath) {
-    await deleteCloudinaryImage(oldAvatarPath);
+    throw new apiError(500, "Failed to update user with new avatar");
   }
 
-  // Return a success response with the updated user data
+  // Return success response with updated user data
   return res
     .status(200)
-    .json(
-      new ApiResponse(200, updatedUser, "Avatar updated successfully")
-    );
+    .json(new ApiResponse(200, updatedUser, "Avatar updated successfully"));
 });
 
 const updateCoverImageFile = asyncHandler(async (req, res) => {
-  const userId = req.user._id; // Get the current user's ID from the request
-  const user = await User.findById(userId); // Find the user in the database
+  const userId = req.user?._id; // Get the current user's ID from the request
 
+  // Validate user existence
+  const user = await User.findById(userId);
   if (!user) {
-    throw new apiError(404, "User not found"); // Handle case where user is not found
+    throw new ApiError(404, "User not found");
   }
 
-  // Check if a new cover image is uploaded in the request
-  const coverImageLocalPath = req.files?.coverImage[0]?.path;
-
-  // If new cover image is uploaded, upload it to Cloudinary and update the cover image URL
-  if (coverImageLocalPath) {
-    const coverImage = await uploadonCloudinary(coverImageLocalPath);
-    if (!coverImage) {
-      throw new apiError(500, "Failed to upload cover image to cloudinary");
-    }
-    user.coverImage = coverImage.url;
-    await user.save(); // Save the updated user document in the database
+  // Check if a new cover image is provided in the request
+  const coverImageLocalPath = req.file?.path; // Assuming a single file upload
+  if (!coverImageLocalPath) {
+    throw new ApiError(400, "Cover image file is missing");
   }
 
-  // Fetch the updated user object without sensitive data (e.g., password and refreshToken)
-  const updatedUser = await User.findById(userId).select(
-    "-password -refreshToken"
-  );
+  // Upload the new cover image to Cloudinary
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+  if (!coverImage?.url) {
+    throw new ApiError(500, "Failed to upload cover image to Cloudinary");
+  }
 
-  // Check for successful user update and handle any errors
+  // Store the old cover image URL
+  const oldCoverImageUrl = user.coverImage;
+
+  // Update the user with the new cover image URL in the database
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $set: { coverImage: coverImage.url } },
+    { new: true }
+  ).select("-password -refreshToken");
+
   if (!updatedUser) {
-    throw new apiError(500, "Something went wrong while updating the cover image");
+    throw new ApiError(
+      500,
+      "Something went wrong while updating the cover image"
+    );
   }
-  //delete the old/previous file from server 
-  const oldCoverImagePath = user.coverImage;
-  if (oldCoverImagePath) {
-    await deleteCloudinaryImage(oldCoverImagePath);
+
+  // Delete the old cover image if it exists and is different from the new one
+  if (oldCoverImageUrl && oldCoverImageUrl !== coverImage.url) {
+    await deleteCloudinaryImage(oldCoverImageUrl);
   }
+
   // Return a success response with the updated user data
   return res
     .status(200)
@@ -425,5 +436,5 @@ export {
   getCurrentUser,
   updateAccountDetails,
   updateAvatarFile,
-  updateCoverImageFile
+  updateCoverImageFile,
 };

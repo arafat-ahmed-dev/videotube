@@ -7,7 +7,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET, // Click 'View API Keys' above to copy your API secret
 });
 
-const uploadonCloudinary = async (file) => {
+const uploadOnCloudinary = async (file) => {
   try {
     if (!file) return null;
     const response = await cloudinary.uploader.upload(file, {
@@ -31,6 +31,6 @@ const deleteCloudinaryImage = async (file) => {
     console.error("Cloudinary image deletion failed:", error);
     return null;
   }
-}
+};
 
-export { uploadonCloudinary, deleteCloudinaryImage };
+export { uploadOnCloudinary, deleteCloudinaryImage };
