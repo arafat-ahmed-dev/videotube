@@ -282,22 +282,35 @@ const getCurrentUser = asyncHandler(async (req, res) => {
 const updateAccountDetails = asyncHandler(async (req, res) => {
   const { fullName, username } = req.body;
   const userId = req.user._id; // Get the current user's ID from the request
-  const user = await User.findById(userId); // Find the user in the database
 
-  if (!user) {
-    throw new apiError(404, "User not found"); // Handle case where user is not found
+  // Check if username is being updated and if it already exists
+  if (username) {
+    const existingUser = await User.findOne({ username });
+    if (existingUser && existingUser._id.toString() !== userId.toString()) {
+      throw new apiError(400, "Username already exists. Try another one ");
+    }
   }
 
-  // Update the user document with the new username, email, fullName, avatar, and cover image (if provided)
-  user.fullName = fullName;
-  user.username = username;
+  // Check if the new full name and username match the old ones
+  const currentUser = await User.findById(userId);
+  if (fullName === currentUser.fullName || username === currentUser.username) {
+    throw new apiError(400, "New full name and username cannot be the same as the old ones");
+  }
+
+  // Prepare the update object based on the fields provided
+  const updateObject = {};
+  if (fullName) updateObject.fullName = fullName;
+  if (username) updateObject.username = username;
 
   // Save the updated user document in the database
-  await user.save();
-
-  // Fetch the updated user object without sensitive data (e.g., password and refreshToken)
-  const updatedUser = await User.findById(userId).select(
-    "-password -refreshToken"
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    {
+      $set: updateObject
+    },
+    {
+      new: true
+    }
   );
 
   // Check for successful user update and handle any errors
