@@ -45,21 +45,21 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   // Get local paths of uploaded files
-  const avatorLocalPath = req.files?.avator[0]?.path;
+  const avatarLocalPath = req.files?.avatar[0]?.path;
   const coverImageLocalPath = req.files?.coverImage[0]?.path;
 
-  // Validate avator is provided since it's required
-  if (!avatorLocalPath) {
-    throw new apiError(400, "avator image is required");
+  // Validate avatar is provided since it's required
+  if (!avatarLocalPath) {
+    throw new apiError(400, "avatar image is required");
   }
 
   // Upload images to cloudinary
-  const avator = await uploadonCloudinary(avatorLocalPath);
+  const avatar = await uploadonCloudinary(avatarLocalPath);
   const coverImage = await uploadonCloudinary(coverImageLocalPath);
 
-  // Verify avator upload was successful
-  if (!avator) {
-    throw new apiError(500, "Failed to upload avator to cloudinary");
+  // Verify avatar upload was successful
+  if (!avatar) {
+    throw new apiError(500, "Failed to upload avatar to cloudinary");
   }
 
   // Create new user in database
@@ -67,7 +67,7 @@ const registerUser = asyncHandler(async (req, res) => {
     username,
     email,
     fullName,
-    avator: avator.url,
+    avatar: avatar.url,
     coverImage: coverImage?.url || "", // Use empty string if no cover image
     password,
   });
@@ -89,17 +89,18 @@ const registerUser = asyncHandler(async (req, res) => {
 });
 
 const loginUser = asyncHandler(async (req, res) => {
-  const { email, username, password } = req.body;
+  const { email, password } = req.body;
 
-  console.log("Email provided: ", email);
-  console.log("username found: ", username);
+  if (email === undefined) {
+    console.log("email is undefined");
+  }
 
-  if (!(username || email)) {
-    throw new apiError(400, "username or email is required");
+  if (!email) {
+    throw new apiError(400, "email is required");
   }
 
   const user = await User.findOne({
-    $or: [{ username }, { email }],
+    email: email.toLowerCase(),
   });
   if (!user) {
     throw new apiError(404, "User does not exist");
@@ -162,10 +163,10 @@ const logoutUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
-// This function handles the refreshing of access tokens for authenticated users
 const refreshAccessToken = asyncHandler(async (req, res) => {
   // 1. Extract the refresh token from the request cookies or headers.
-  const incomingRefreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
 
   // 2. Check if the refresh token is provided; if not, throw an error.
   if (!incomingRefreshToken) {
@@ -174,30 +175,34 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   try {
     // 3. Verify the refresh token using the secret stored in environment variables.
-    const decodedToken = jwt.verify(incomingRefreshToken, process.env.ACCESS_TOKEN_SECRET);
-    
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.ACCESS_TOKEN_SECRET
+    );
+
     // 4. Find the user associated with the token.
     const user = await User.findById(decodedToken?._id);
-  
+
     // 5. If the user is not found, throw an error.
     if (!user) {
       throw new apiError(401, "Invalid refresh token");
     }
-  
+
     // 6. Check if the incoming refresh token matches the user's stored refresh token.
     if (incomingRefreshToken !== user.refreshToken) {
       throw new apiError(401, "Refresh token is expired or used");
     }
-  
+
     // 7. Generate a new access token and refresh token for the user.
-    const { accessToken, newRefreshToken } = await genarateAccessTokenAndRefreshToken(user?._id);
-    
+    const { accessToken, newRefreshToken } =
+      await genarateAccessTokenAndRefreshToken(user?._id);
+
     // 8. Set cookie options for security.
     const option = {
       httpOnly: true,
       secure: true,
     };
-  
+
     // 9. Send the new access token and refresh token back to the client in the response.
     return res
       .status(200)
@@ -219,4 +224,181 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 });
 
-export { registerUser, loginUser, logoutUser , refreshAccessToken };
+const currentPasswordChange = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  const userId = req.user._id; // No need for await here, _id is not a promise
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new apiError(404, "User not found");
+  }
+
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new apiError(400, "Invalid old password");
+  }
+
+  // Check if old password and new password are not the same
+  if (await user.isPasswordCorrect(newPassword)) {
+    throw new apiError(
+      400,
+      "New password cannot be the same as the old password"
+    );
+  }
+
+  // Validate new password strength
+  const passwordRegex =
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/;
+
+  if (!passwordRegex.test(newPassword)) {
+    throw new apiError(
+      400,
+      "New password must be at least 10 characters long, contain a mix of uppercase and lowercase letters, a number, and a special character."
+    );
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Password changed successfully"));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  const userId = req.user._id; // Get the current user's ID from the request
+  const user = await User.findById(userId); // Find the user in the database
+
+  if (!user) {
+    throw new apiError(404, "User not found"); // Handle case where user is not found
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Current user retrieved successfully")); // Respond with the current user's data
+});
+
+const updateAccountDetails = asyncHandler(async (req, res) => {
+  const { fullName, username } = req.body;
+  const userId = req.user._id; // Get the current user's ID from the request
+  const user = await User.findById(userId); // Find the user in the database
+
+  if (!user) {
+    throw new apiError(404, "User not found"); // Handle case where user is not found
+  }
+
+  // Update the user document with the new username, email, fullName, avatar, and cover image (if provided)
+  user.fullName = fullName;
+  user.username = username;
+
+  // Save the updated user document in the database
+  await user.save();
+
+  // Fetch the updated user object without sensitive data (e.g., password and refreshToken)
+  const updatedUser = await User.findById(userId).select(
+    "-password -refreshToken"
+  );
+
+  // Check for successful user update and handle any errors
+  if (!updatedUser) {
+    throw new apiError(500, "Something went wrong while updating the user");
+  }
+
+  // Return a success response with the updated user data
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedUser, "User account updated successfully")
+    );
+});
+
+const updateAvatarFile = asyncHandler(async (req, res) => {
+  const userId = req.user._id; // Get the current user's ID from the request
+  const user = await User.findById(userId); // Find the user in the database
+
+  if (!user) {
+    throw new apiError(404, "User not found"); // Handle case where user is not found
+  }
+
+  // Check if a new avatar image is uploaded in the request
+  const avatarLocalPath = req.files?.avatar[0]?.path;
+
+  // If new avatar image is uploaded, upload it to Cloudinary and update the avatar URL
+  if (avatarLocalPath) {
+    const avatar = await uploadonCloudinary(avatarLocalPath);
+    if (!avatar) {
+      throw new apiError(500, "Failed to upload avatar to cloudinary");
+    }
+    user.avatar = avatar.url;
+    await user.save(); // Save the updated user document in the database
+  }
+
+  // Fetch the updated user object without sensitive data (e.g., password and refreshToken)
+  const updatedUser = await User.findById(userId).select(
+    "-password -refreshToken"
+  );
+
+  // Check for successful user update and handle any errors
+  if (!updatedUser) {
+    throw new apiError(500, "Something went wrong while updating the avatar");
+  }
+
+  // Return a success response with the updated user data
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedUser, "Avatar updated successfully")
+    );
+});
+
+const updateCoverImageFile = asyncHandler(async (req, res) => {
+  const userId = req.user._id; // Get the current user's ID from the request
+  const user = await User.findById(userId); // Find the user in the database
+
+  if (!user) {
+    throw new apiError(404, "User not found"); // Handle case where user is not found
+  }
+
+  // Check if a new cover image is uploaded in the request
+  const coverImageLocalPath = req.files?.coverImage[0]?.path;
+
+  // If new cover image is uploaded, upload it to Cloudinary and update the cover image URL
+  if (coverImageLocalPath) {
+    const coverImage = await uploadonCloudinary(coverImageLocalPath);
+    if (!coverImage) {
+      throw new apiError(500, "Failed to upload cover image to cloudinary");
+    }
+    user.coverImage = coverImage.url;
+    await user.save(); // Save the updated user document in the database
+  }
+
+  // Fetch the updated user object without sensitive data (e.g., password and refreshToken)
+  const updatedUser = await User.findById(userId).select(
+    "-password -refreshToken"
+  );
+
+  // Check for successful user update and handle any errors
+  if (!updatedUser) {
+    throw new apiError(500, "Something went wrong while updating the cover image");
+  }
+
+  // Return a success response with the updated user data
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, updatedUser, "Cover image updated successfully")
+    );
+});
+
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  refreshAccessToken,
+  currentPasswordChange,
+  getCurrentUser,
+  updateAccountDetails,
+  updateAvatarFile,
+  updateCoverImageFile
+};
