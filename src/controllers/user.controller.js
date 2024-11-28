@@ -7,7 +7,7 @@ import {
   deleteCloudinaryImage,
 } from "../utils/cloudinary.js";
 
-const genarateAccessTokenAndRefreshToken = async (userid) => {
+const genarateAccessTokenAndRefreshToken = async userid => {
   try {
     const user = await User.findById(userid); // Retrieve user from DB
     const accessToken = await user.generateAccessToken(); // Generate Access Token
@@ -36,7 +36,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // Validate that all required fields are provided and not empty
   if (
-    [username, email, fullName, password].some((field) => field?.trim() === "")
+    [username, email, fullName, password].some(field => field?.trim() === "")
   ) {
     throw new apiError(400, "All fields are required");
   }
