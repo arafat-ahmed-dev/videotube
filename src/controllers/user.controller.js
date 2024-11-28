@@ -427,6 +427,80 @@ const updateCoverImageFile = asyncHandler(async (req, res) => {
     );
 });
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  const { username } = req.params;
+
+  // 1. Validate username parameter
+  if (!username?.trim()) {
+    throw new apiError(404, "Username is missing");
+  }
+
+  const channel = await User.aggregate([
+    {
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel",
+        as: "subscribers",
+      },
+    },
+    {
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers", // Count number of subscribers
+        },
+        subscribedToCount: {
+          $size: "$subscribedTo", // Count number of subscriptions
+        },
+        isCurrentUserSubscribe: {
+          $cond: {
+            if: { $in: [req.user._id, "$subscribers.subscriber"] }, // Check if current user is a subscriber
+            then: true, // If true, user is a subscriber
+            else: false, // If false, user is not a subscriber
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        fullName: 1,
+        avatar: 1,
+        coverImage: 1,
+        username: 1,
+        email: 1,
+        subscribersCount: 1,
+        subscribedToCount: 1,
+        isCurrentUserSubscribe: 1,
+      },
+    },
+  ]);
+
+  // 2. If no channel is found, return a 404 error
+  if (channel.length === 0) {
+    throw new apiError(404, "Channel does not exist");
+  }
+
+  // 3. Return channel data if found
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, channel[0], "Channel data accessed successfully")
+    ); // Access the first channel if multiple results are returned
+});
+
 export {
   registerUser,
   loginUser,
@@ -437,4 +511,5 @@ export {
   updateAccountDetails,
   updateAvatarFile,
   updateCoverImageFile,
+  getUserChannelProfile,
 };
