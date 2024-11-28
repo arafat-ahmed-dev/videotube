@@ -6,6 +6,8 @@ import {
   uploadOnCloudinary,
   deleteCloudinaryImage,
 } from "../utils/cloudinary.js";
+import mongoose from "mongoose";
+
 
 const genarateAccessTokenAndRefreshToken = async userid => {
   try {
@@ -501,6 +503,68 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     ); // Access the first channel if multiple results are returned
 });
 
+const getWatchHistory = asyncHandler(async (req, res) => {
+  // Fetch the user and populate the watch history
+  const user = await User.aggregate([
+    {
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id), // Match the user based on the logged-in user's ID
+      },
+    },
+    {
+      $lookup: {
+        from: "videos", // Lookup the 'videos' collection
+        localField: "watchhistory", // Match the user's watch history field
+        foreignField: "_id", // with the _id in the 'videos' collection
+        as: "watchHistory", // Store the results in the 'watchHistory' field
+        pipeline: [
+          {
+            $lookup: {
+              from: "users", // Lookup the 'users' collection to fetch the owner details for each video
+              localField: "owner", // Match the owner field from the video
+              foreignField: "_id", // with the _id in the 'users' collection
+              as: "owner", // Store the matched user details in 'owner' field
+              pipeline: [
+                {
+                  $project: {
+                    fullName: 1, // Include fullName in the response
+                    avatar: 1, // Correct the spelling of 'avatar'
+                    username: 1, // Include username in the response
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              owner: {
+                $first: "$owner", // Retrieve the first (and ideally only) owner object for each video
+              },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  // Check if the user and watchHistory were found
+  if (!user || user.length === 0 || !user[0].watchHistory) {
+    return res
+      .status(404)
+      .json(new ApiResponse(404, {}, "No watch history found")); // Return 404 if no watch history found
+  }
+
+  // Return the watch history along with a success message
+  return res.status(200).json(
+    new ApiResponse(
+      200,
+      user[0].watchHistory, // Return the watchHistory array
+      "Watch history accessed successfully" // Success message
+    )
+  );
+});
+
+
 export {
   registerUser,
   loginUser,
@@ -512,4 +576,5 @@ export {
   updateAvatarFile,
   updateCoverImageFile,
   getUserChannelProfile,
+  getWatchHistory,
 };
