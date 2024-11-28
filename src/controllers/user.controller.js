@@ -1,5 +1,5 @@
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { apiError } from "../utils/apiError.js";
+import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
 import {
@@ -7,7 +7,6 @@ import {
   deleteCloudinaryImage,
 } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
-
 
 const genarateAccessTokenAndRefreshToken = async userid => {
   try {
@@ -24,7 +23,7 @@ const genarateAccessTokenAndRefreshToken = async userid => {
     };
   } catch (error) {
     console.log("Error generating tokens: ", error); // Add logging here for debugging
-    throw new apiError(
+    throw new ApiError(
       500,
       "Something went wrong for generate Access token or Refresh token"
     );
@@ -40,13 +39,13 @@ const registerUser = asyncHandler(async (req, res) => {
   if (
     [username, email, fullName, password].some(field => field?.trim() === "")
   ) {
-    throw new apiError(400, "All fields are required");
+    throw new ApiError(400, "All fields are required");
   }
 
   // Check if user already exists with same username or email
   const existingUser = await User.findOne({ $or: [{ username }, { email }] });
   if (existingUser) {
-    throw new apiError(400, "User already exists");
+    throw new ApiError(400, "User already exists");
   }
 
   // Get local paths of uploaded files
@@ -55,7 +54,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // Validate avatar is provided since it's required
   if (!avatarLocalPath) {
-    throw new apiError(400, "avatar image is required");
+    throw new ApiError(400, "avatar image is required");
   }
 
   // Upload images to cloudinary
@@ -64,7 +63,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // Verify avatar upload was successful
   if (!avatar) {
-    throw new apiError(500, "Failed to upload avatar to cloudinary");
+    throw new ApiError(500, "Failed to upload avatar to cloudinary");
   }
 
   // Create new user in database
@@ -84,7 +83,7 @@ const registerUser = asyncHandler(async (req, res) => {
 
   // Verify user was created successfully
   if (!createdUser) {
-    throw new apiError(500, "Something went wrong while registering the user");
+    throw new ApiError(500, "Something went wrong while registering the user");
   }
 
   // Return success response
@@ -101,19 +100,19 @@ const loginUser = asyncHandler(async (req, res) => {
   }
 
   if (!email) {
-    throw new apiError(400, "email is required");
+    throw new ApiError(400, "email is required");
   }
 
   const user = await User.findOne({
     email: email.toLowerCase(),
   });
   if (!user) {
-    throw new apiError(404, "User does not exist");
+    throw new ApiError(404, "User does not exist");
   }
 
   const isPasswordValid = await user.isPasswordCorrect(password);
   if (!isPasswordValid) {
-    throw new apiError(401, "Invalid user credentials");
+    throw new ApiError(401, "Invalid user credentials");
   }
 
   const { accessToken, refreshToken } =
@@ -175,7 +174,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
   // 2. Check if the refresh token is provided; if not, throw an error.
   if (!incomingRefreshToken) {
-    throw new apiError(401, "Unauthorized request");
+    throw new ApiError(401, "Unauthorized request");
   }
 
   try {
@@ -190,12 +189,12 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 
     // 5. If the user is not found, throw an error.
     if (!user) {
-      throw new apiError(401, "Invalid refresh token");
+      throw new ApiError(401, "Invalid refresh token");
     }
 
     // 6. Check if the incoming refresh token matches the user's stored refresh token.
     if (incomingRefreshToken !== user.refreshToken) {
-      throw new apiError(401, "Refresh token is expired or used");
+      throw new ApiError(401, "Refresh token is expired or used");
     }
 
     // 7. Generate a new access token and refresh token for the user.
@@ -225,7 +224,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       );
   } catch (error) {
     // 10. Handle any errors that occur during the process.
-    throw new apiError(401, error?.message || "Invalid refresh token");
+    throw new ApiError(401, error?.message || "Invalid refresh token");
   }
 });
 
@@ -236,18 +235,18 @@ const currentPasswordChange = asyncHandler(async (req, res) => {
   const user = await User.findById(userId);
 
   if (!user) {
-    throw new apiError(404, "User not found");
+    throw new ApiError(404, "User not found");
   }
 
   const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
   if (!isPasswordCorrect) {
-    throw new apiError(400, "Invalid old password");
+    throw new ApiError(400, "Invalid old password");
   }
 
   // Check if old password and new password are not the same
   if (await user.isPasswordCorrect(newPassword)) {
-    throw new apiError(
+    throw new ApiError(
       400,
       "New password cannot be the same as the old password"
     );
@@ -258,7 +257,7 @@ const currentPasswordChange = asyncHandler(async (req, res) => {
     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{10,}$/;
 
   if (!passwordRegex.test(newPassword)) {
-    throw new apiError(
+    throw new ApiError(
       400,
       "New password must be at least 10 characters long, contain a mix of uppercase and lowercase letters, a number, and a special character."
     );
@@ -276,7 +275,7 @@ const getCurrentUser = asyncHandler(async (req, res) => {
   const user = await User.findById(userId); // Find the user in the database
 
   if (!user) {
-    throw new apiError(404, "User not found"); // Handle case where user is not found
+    throw new ApiError(404, "User not found"); // Handle case where user is not found
   }
 
   return res
@@ -292,14 +291,14 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
   if (username) {
     const existingUser = await User.findOne({ username });
     if (existingUser && existingUser._id.toString() !== userId.toString()) {
-      throw new apiError(400, "Username already exists. Try another one ");
+      throw new ApiError(400, "Username already exists. Try another one ");
     }
   }
 
   // Check if the new full name and username match the old ones
   const currentUser = await User.findById(userId);
   if (fullName === currentUser.fullName || username === currentUser.username) {
-    throw new apiError(
+    throw new ApiError(
       400,
       "New full name and username cannot be the same as the old ones"
     );
@@ -323,7 +322,7 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
 
   // Check for successful user update and handle any errors
   if (!updatedUser) {
-    throw new apiError(500, "Something went wrong while updating the user");
+    throw new ApiError(500, "Something went wrong while updating the user");
   }
 
   // Return a success response with the updated user data
@@ -340,19 +339,19 @@ const updateAvatarFile = asyncHandler(async (req, res) => {
   // Validate user existence
   const user = await User.findById(userId);
   if (!user) {
-    throw new apiError(404, "User not found");
+    throw new ApiError(404, "User not found");
   }
 
   // Check if a new avatar image is provided in the request
   const avatarLocalPath = req.file?.path;
   if (!avatarLocalPath) {
-    throw new apiError(400, "Avatar file is missing");
+    throw new ApiError(400, "Avatar file is missing");
   }
 
   // Upload new avatar to Cloudinary
   const avatar = await uploadOnCloudinary(avatarLocalPath);
   if (!avatar?.url) {
-    throw new apiError(500, "Failed to upload avatar to Cloudinary");
+    throw new ApiError(500, "Failed to upload avatar to Cloudinary");
   }
 
   // Delete old avatar from Cloudinary if it exists and is different
@@ -369,7 +368,7 @@ const updateAvatarFile = asyncHandler(async (req, res) => {
   ).select("-password");
 
   if (!updatedUser) {
-    throw new apiError(500, "Failed to update user with new avatar");
+    throw new ApiError(500, "Failed to update user with new avatar");
   }
 
   // Return success response with updated user data
@@ -434,7 +433,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 
   // 1. Validate username parameter
   if (!username?.trim()) {
-    throw new apiError(404, "Username is missing");
+    throw new ApiError(404, "Username is missing");
   }
 
   const channel = await User.aggregate([
@@ -492,7 +491,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
 
   // 2. If no channel is found, return a 404 error
   if (channel.length === 0) {
-    throw new apiError(404, "Channel does not exist");
+    throw new ApiError(404, "Channel does not exist");
   }
 
   // 3. Return channel data if found
@@ -563,7 +562,6 @@ const getWatchHistory = asyncHandler(async (req, res) => {
     )
   );
 });
-
 
 export {
   registerUser,

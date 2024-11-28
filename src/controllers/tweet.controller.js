@@ -1,12 +1,16 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Tweet } from "../models/tweet.model.js";
 import { User } from "../models/user.model.js";
-import { ApiError } from "../utils/ApiError.js";
+import { ApiError, ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const createTweet = asyncHandler(async (req, res) => {
   //TODO: create tweet
+  const { content } = req.body;
+  if (!content?.length) {
+    throw new ApiError(404, "Not found the tweet");
+  }
 });
 
 const getUserTweets = asyncHandler(async (req, res) => {

@@ -1,5 +1,5 @@
 // Custom API Error class that extends the built-in Error class
-class apiError extends Error {
+class ApiError extends Error {
   constructor(
     statusCode, // HTTP status code for the error
     message = "Something went wrong", // Default error message if none provided
@@ -8,7 +8,7 @@ class apiError extends Error {
   ) {
     // Call parent Error constructor with message
     super(message);
-    
+
     // Set custom properties
     this.statusCode = statusCode; // Store the HTTP status code
     this.data = null; // No data returned for errors
@@ -25,5 +25,5 @@ class apiError extends Error {
   }
 }
 
-// Export the apiError class
-export { apiError };
+// Export the ApiError class
+export { ApiError };
