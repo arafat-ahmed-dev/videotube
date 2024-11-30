@@ -5,16 +5,19 @@ const tweetSchema = new Schema(
     content: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
+    },
+    tweetImage: {
+      type: String, // cloudinary url
     },
     owner: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true
-    }
+      required: true,
+    },
   },
   {
-    timestamps: true
+    timestamps: true,
   }
 );
 

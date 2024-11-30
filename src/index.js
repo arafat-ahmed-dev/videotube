@@ -10,7 +10,7 @@ connectDB()
   .then(() => {
     console.log("Access Token Secret:", process.env.ACCESS_TOKEN_SECRET);
     console.log("Refresh Token Secret:", process.env.REFRESH_TOKEN_SECRET);
-    app.listen(3001, () => {
+    app.listen(process.env.PORT, () => {
       console.log(`Server is running on port ${process.env.PORT}`);
     });
   })
