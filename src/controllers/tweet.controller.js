@@ -1,10 +1,10 @@
 import mongoose, { isValidObjectId } from "mongoose";
 import { Tweet } from "../models/tweet.model.js";
 import { User } from "../models/user.model.js";
-import { ApiError, ApiError } from "../utils/ApiError.js";
-import { ApiResponse } from "../utils/ApiResponse.js";
+import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import { uploadOnCloudinary, deleteCloudinaryImage } from "../utils/cloudinary.js";
+import ApiResponse from "../utils/ApiResponse.js";
 
 const createTweet = asyncHandler(async (req, res) => {
   // Destructure content from the request body
@@ -17,10 +17,13 @@ const createTweet = asyncHandler(async (req, res) => {
   // Get the local path of the uploaded tweet image
   const tweetImageLocalPath = req.file?.path;
 
-  // Upload the tweet image to Cloudinary
-  const tweetImage = await uploadOnCloudinary(tweetImageLocalPath); // Use await here since uploadOnCloudinary might return a promise
-  if (!tweetImage) {
-    throw new ApiError(500, "Failed to upload tweet image to Cloudinary");
+  // Upload the tweet image to Cloudinary if provided
+  let tweetImage;
+  if (tweetImageLocalPath) {
+    tweetImage = await uploadOnCloudinary(tweetImageLocalPath);
+    if (!tweetImage) {
+      throw new ApiError(500, "Failed to upload tweet image to Cloudinary");
+    }
   }
 
   // Find the user by ID
@@ -50,9 +53,8 @@ const createTweet = asyncHandler(async (req, res) => {
   // Return the populated tweet as a response
   return res
     .status(200)
-    .json(new ApiResponse(200 , tweetWithOwner ,"Tweet created successfully"));
+    .json(new ApiResponse(200, tweetWithOwner, "Tweet created successfully"));
 });
-
 
 const getUserTweets = asyncHandler(async (req, res) => {
   const userId = req?.user._id;
@@ -80,13 +82,146 @@ const getUserTweets = asyncHandler(async (req, res) => {
     );
 });
 
+const updateTweetContent = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const { content } = req.body;
 
-const updateTweet = asyncHandler(async (req, res) => {
-  
+  // Validate tweet ID
+  if (!tweetId || !isValidObjectId(tweetId)) {
+    throw new ApiError(400, "Invalid tweet ID");
+  }
+
+  // Find tweet and verify ownership
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) {
+    throw new ApiError(404, "Tweet not found");
+  }
+
+  // Verify tweet ownership
+  if (tweet.owner.toString() !== req.user?._id.toString()) {
+    throw new ApiError(403, "Unauthorized to update this tweet");
+  }
+
+  // Validate content
+  if (!content?.trim()) {
+    throw new ApiError(400, "Tweet content is required");
+  }
+
+  // Update tweet content
+  const updatedTweet = await Tweet.findByIdAndUpdate(
+    tweetId,
+    {
+      $set: {
+        content: content.trim()
+      }
+    },
+    { new: true }
+  ).populate("owner", "avatar fullName username");
+
+  if (!updatedTweet) {
+    throw new ApiError(500, "Something went wrong while updating tweet content");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedTweet, "Tweet content updated successfully"));
 });
+
+const updateTweetImage = asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+
+  // Validate tweet ID
+  if (!tweetId || !isValidObjectId(tweetId)) {
+    throw new ApiError(400, "Invalid tweet ID");
+  }
+
+  // Find tweet and verify ownership
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) {
+    throw new ApiError(404, "Tweet not found");
+  }
+
+  // Verify tweet ownership
+  if (tweet.owner.toString() !== req.user?._id.toString()) {
+    throw new ApiError(403, "Unauthorized to update this tweet");
+  }
+
+  // Check if image is provided
+  if (!req.file?.path) {
+    throw new ApiError(400, "Tweet image is required");
+  }
+
+  // Upload new image
+  const uploadedImage = await uploadOnCloudinary(req.file.path);
+  if (!uploadedImage?.url) {
+    throw new ApiError(500, "Error while uploading image");
+  }
+
+  // Update tweet image
+  const updatedTweet = await Tweet.findByIdAndUpdate(
+    tweetId,
+    {
+      $set: {
+        tweetImage: uploadedImage.url
+      }
+    },
+    { new: true }
+  ).populate("owner", "avatar fullName username");
+
+  if (!updatedTweet) {
+    throw new ApiError(500, "Something went wrong while updating tweet image");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedTweet, "Tweet image updated successfully"));
+});
+
 
 const deleteTweet = asyncHandler(async (req, res) => {
-  //TODO: delete tweet
+  const { tweetId } = req.params;
+
+  // Validate tweet ID
+  if (!tweetId || !isValidObjectId(tweetId)) {
+    throw new ApiError(400, "Invalid tweet ID");
+  }
+
+  // Find tweet and verify ownership
+  const tweet = await Tweet.findById(tweetId);
+  if (!tweet) {
+    throw new ApiError(404, "Tweet not found");
+  }
+
+  // Verify tweet ownership
+  if (tweet.owner.toString() !== req.user?._id.toString()) {
+    throw new ApiError(403, "Unauthorized to delete this tweet");
+  }
+
+  // Delete tweet image from Cloudinary if exists
+  if (tweet.tweetImage) {
+    // Extract public_id from Cloudinary URL
+    const publicId = tweet.tweetImage.split('/').pop().split('.')[0];
+    const cloudinaryResponse = await deleteCloudinaryImage(publicId);
+    if (!cloudinaryResponse) {
+      throw new ApiError(500, "Error while deleting tweet image");
+    }
+  }
+
+  // Delete the tweet from database
+  const deletedTweet = await Tweet.findByIdAndDelete(tweetId);
+  if (!deletedTweet) {
+    throw new ApiError(500, "Error while deleting tweet");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, {}, "Tweet deleted successfully"));
 });
 
-export { createTweet, getUserTweets, updateTweet, deleteTweet };
+export { 
+  createTweet, 
+  getUserTweets,
+  updateTweetContent,
+  updateTweetImage,
+  deleteTweet 
+};
