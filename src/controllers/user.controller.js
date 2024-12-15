@@ -2,7 +2,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import ApiResponse from "../utils/ApiResponse.js";
-import bcrypt from "bcryptjs";
 
 import {
   uploadOnCloudinary,
@@ -24,7 +23,6 @@ const genarateAccessTokenAndRefreshToken = async userid => {
       refreshToken,
     };
   } catch (error) {
-    console.log("Error generating tokens: ", error); // Add logging here for debugging
     throw new ApiError(
       500,
       "Something went wrong for generate Access token or Refresh token"
@@ -33,24 +31,22 @@ const genarateAccessTokenAndRefreshToken = async userid => {
 };
 
 const registerUser = asyncHandler(async (req, res) => {
+  // Get user details from request body
+  const { username, email, fullName, password } = req.body;
+
+  // Validate that all required fields are provided and not empty
+  if (
+    [username, email, fullName, password].some(field => field?.trim() === "")
+  ) {
+    throw new ApiError(400, "All fields are required");
+  }
+
+  // Check if user already exists with same username or email
+  const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+  if (existingUser) {
+    throw new ApiError(400, "User already exists");
+  }
   try {
-    // Get user details from request body
-    const { username, email, fullName, password } = req.body;
-    console.log(username, fullName, password, email);
-
-    // Validate that all required fields are provided and not empty
-    if (
-      [username, email, fullName, password].some(field => field?.trim() === "")
-    ) {
-      throw new ApiError(400, "All fields are required");
-    }
-
-    // Check if user already exists with same username or email
-    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
-    if (existingUser) {
-      throw new ApiError(400, "User already exists");
-    }
-
     // Get local paths of uploaded files
     const avatarLocalPath = req.files?.avatar
       ? req.files.avatar[0]?.path
@@ -64,27 +60,17 @@ const registerUser = asyncHandler(async (req, res) => {
       throw new ApiError(400, "Avatar image is required");
     }
 
-    console.log("Avatar Local Path:", avatarLocalPath);
-    console.log("Cover Image Local Path:", coverImageLocalPath);
-
     // Upload images to Cloudinary
     const avatar = await uploadOnCloudinary(avatarLocalPath);
     const coverImage = coverImageLocalPath
       ? await uploadOnCloudinary(coverImageLocalPath)
       : null;
 
-    console.log("Avatar Upload:", avatar);
-    console.log("Cover Image Upload:", coverImage);
 
     // Verify avatar upload was successful
     if (!avatar) {
       throw new ApiError(500, "Failed to upload avatar to Cloudinary");
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    console.log("Hashed Password:", hashedPassword);
-
     // Create new user in database
     const user = await User.create({
       username,
@@ -92,16 +78,7 @@ const registerUser = asyncHandler(async (req, res) => {
       fullName,
       avatar: avatar.url,
       coverImage: coverImage?.url || "",
-      password: hashedPassword, // Store hashed password
-    });
-
-    console.log("User Data to be Created:", {
-      username,
-      email,
-      fullName,
-      avatar: avatar.url,
-      coverImage: coverImage?.url || "",
-      password: hashedPassword,
+      password, // Store hashed password
     });
 
     // Fetch created user without sensitive fields
@@ -121,13 +98,12 @@ const registerUser = asyncHandler(async (req, res) => {
       .json(new ApiResponse(200, createdUser, "User registered successfully"));
   } catch (error) {
     console.error("Error during registration:", error);
-    throw new ApiError(500, "Internal server error during registration");
+    throw new ApiError(500, "Internal server error during registration", error);
   }
 });
 
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-  console.log(req.body);
 
   if (email === undefined) {
     console.log("email is undefined");
